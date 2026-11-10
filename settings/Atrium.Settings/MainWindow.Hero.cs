@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -30,7 +31,7 @@ public sealed partial class MainWindow
     internal sealed record BarGeometry(
         double S, double BaseX, double BarX, double BarY, double BarW, double BarH, double Radius, double MaxW,
         int N, double Icon, double P, double PlateR, double AppsLeft, double Pitch, double PlateY,
-        bool Clock, double ClockX, double ClockW, double TimePx, double DatePx, double SepX,
+        bool Clock, bool WeekNumber, double ClockX, double ClockW, double TimePx, double DatePx, double SepX,
         double StartX, double TrayX, double StatusX, double BellX,
         double K, double Centre, double Range,
         double LoupeX0, double LoupeY0, double LoupeW, double LoupeH)
@@ -146,7 +147,9 @@ public sealed partial class MainWindow
         double P = Math.Max(I + 4, Math.Min(H - 12, Math.Round(I * 1.55)));
         double v = Math.Floor((H - P) / 2), pad = v + 4, gap = Math.Max(4, Math.Round(I * 0.18));
         double timePx = H * 0.25, datePx = H * 0.19, sepGap = 8;
-        double clockW = s.ShowClock ? Math.Max(timePx * 2.75, datePx * 5.7) + 22 : 0;
+        double dateW = datePx * 5.7;
+        double weekTimeW = s.ShowWeekNumber ? datePx * 3.2 + 8 + timePx * 2.75 : 0;
+        double clockW = s.ShowClock ? Math.Max(Math.Max(timePx * 2.75, dateW), weekTimeW) + 22 : 0;
         int rightCount = (s.ShowTray ? 1 : 0) + (s.ShowStatus ? 1 : 0) + (s.ShowNotifications ? 1 : 0) + (s.ShowClock ? 1 : 0);
         double rightW = (rightCount - (s.ShowClock ? 1 : 0)) * P + clockW + Math.Max(0, rightCount - 1) * gap;
         double Content(int n) => Math.Max(2 * H, 2 * pad + P + 2 * gap + n * P + Math.Max(0, n - 1) * gap + (rightCount > 0 ? 2 * sepGap + rightW : 0));
@@ -192,7 +195,7 @@ public sealed partial class MainWindow
         double lw = Math.Max(64, reff + 34), lh = Math.Max(56, reff + 26);
         return new BarGeometry(S, bx, left, by, right - left, H * S, reff * S, maxW * S,
             n, I * S, P * S, Math.Max(4, Math.Min(P / 2, reff - v)) * S, appsLeft, pitch, by + v * S,
-            clockW > 0, X(clockLeft), clockW * S, timePx * S, datePx * S, rightCount > 0 ? bx + (rightLeft - sepGap) * S : -1,
+            clockW > 0, s.ShowClock && s.ShowWeekNumber, X(clockLeft), clockW * S, timePx * S, datePx * S, rightCount > 0 ? bx + (rightLeft - sepGap) * S : -1,
             bx + pad * S, X(trayLeft), X(statusLeft), X(bellLeft),
             k, centre, range,
             right - (lw - 10) * S, by - 10 * S, lw * S, lh * S);
@@ -218,6 +221,13 @@ public sealed partial class MainWindow
 
     private bool DarkInk() => _current.TextColor == "dark" || (_current.TextColor == "auto" && _darkInk);
 
+    private static int WeekOfYear(DateTime date, string rule)
+    {
+        if (rule == "iso") return ISOWeek.GetWeekOfYear(date);
+        var format = CultureInfo.CurrentCulture.DateTimeFormat;
+        return new GregorianCalendar().GetWeekOfYear(date, format.CalendarWeekRule, format.FirstDayOfWeek);
+    }
+
     private void PositionTaskbar(BarGeometry L, bool loupe)
     {
         int running = _current.ShowRunning && L.N > _previewPins.Length ? _previewPins.Length : -1;
@@ -228,13 +238,14 @@ public sealed partial class MainWindow
             if (_loupeFace.Icons[i].DataContext != vm) _loupeFace.Icons[i].DataContext = vm;
         }
         var clock = DateTime.Now;
-        string time = clock.ToString("H:mm"), date = clock.ToString("yyyy/M/d");
-        _face.SetClock(time, date);
+        string time = clock.ToString("H:mm"), date = clock.ToString("d", CultureInfo.CurrentCulture);
+        string week = _current.ShowWeekNumber ? "W" + WeekOfYear(clock, _current.WeekNumberRule).ToString("00", CultureInfo.InvariantCulture) : "";
+        _face.SetClock(time, date, week);
         var battery = BarFace.Battery();
         _face.Layout(L, DarkInk(), L.N, running, _current.Magnify, 1, 0, 0, battery);
         if (loupe)
         {
-            _loupeFace.SetClock(time, date);
+            _loupeFace.SetClock(time, date, week);
             _loupeFace.Layout(L, DarkInk(), L.N, running, _current.Magnify, LoupeZoom, L.LoupeX0, L.LoupeY0, battery);
         }
     }

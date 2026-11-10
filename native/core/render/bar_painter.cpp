@@ -347,7 +347,7 @@ bool BarPainter::UpdateDotInk(const BarScene& scene, const Readback& backdrop, c
 }
 
 void BarPainter::Draw(ID2D1DeviceContext2* d2d, const BarScene& scene, Ink ink, const std::wstring& time, const std::wstring& date,
-                      const std::wstring& contentKey, bool animating)
+                      const std::wstring& week, const std::wstring& contentKey, bool animating)
 {
     winrt::com_ptr<ID2D1Image> target;
     d2d->GetTarget(target.put());
@@ -358,7 +358,7 @@ void BarPainter::Draw(ID2D1DeviceContext2* d2d, const BarScene& scene, Ink ink, 
         D2D1_BITMAP_PROPERTIES1 bp =
             D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET, D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
         if (FAILED(d2d->CreateBitmap(size, nullptr, 0, &bp, layer_.put()))) {
-            DrawContent(d2d, scene, ink, time, date); // no layer: draw directly
+            DrawContent(d2d, scene, ink, time, date, week); // no layer: draw directly
             return;
         }
         layerKey_.clear();
@@ -366,7 +366,7 @@ void BarPainter::Draw(ID2D1DeviceContext2* d2d, const BarScene& scene, Ink ink, 
     if (animating || contentKey != layerKey_) {
         d2d->SetTarget(layer_.get());
         d2d->Clear(D2D1::ColorF(0, 0, 0, 0));
-        DrawContent(d2d, scene, ink, time, date);
+        DrawContent(d2d, scene, ink, time, date, week);
         d2d->SetTarget(target.get());
         layerKey_ = animating ? std::wstring() : contentKey;
     }
@@ -375,7 +375,8 @@ void BarPainter::Draw(ID2D1DeviceContext2* d2d, const BarScene& scene, Ink ink, 
     d2d->DrawImage(layer_.get(), &at, nullptr, D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR, D2D1_COMPOSITE_MODE_SOURCE_OVER);
 }
 
-void BarPainter::DrawContent(ID2D1DeviceContext2* d2d, const BarScene& scene, Ink inks, const std::wstring& time, const std::wstring& date)
+void BarPainter::DrawContent(ID2D1DeviceContext2* d2d, const BarScene& scene, Ink inks, const std::wstring& time, const std::wstring& date,
+                             const std::wstring& week)
 {
     const float s = scene.scale;
     // Ink colours: white on dark glass, near-black on light glass, per region.
@@ -436,17 +437,28 @@ void BarPainter::DrawContent(ID2D1DeviceContext2* d2d, const BarScene& scene, In
         }
         float lineT = scene.timePx * 1.22f, lineD = scene.datePx * 1.25f;
         float top = (scene.clock.top + scene.clock.bottom) / 2 - (lineT + lineD) / 2;
-        auto text = [&](const std::wstring& str, IDWriteTextFormat* f, float y0, float y1) {
+        auto text = [&](const std::wstring& str, IDWriteTextFormat* f, float x0, float x1, float y0, float y1) {
             if (!f)
                 return;
             float o = std::max(1.0f, s * 0.6f);
             brush->SetColor(halo);
-            DrawUiText(d2d, dwrite_.get(), str, f, D2D1::RectF(scene.clock.left, y0 + o, scene.clock.right, y1 + o), brush.get());
+            DrawUiText(d2d, dwrite_.get(), str, f, D2D1::RectF(x0, y0 + o, x1, y1 + o), brush.get());
             brush->SetColor(ink);
-            DrawUiText(d2d, dwrite_.get(), str, f, D2D1::RectF(scene.clock.left, y0, scene.clock.right, y1), brush.get());
+            DrawUiText(d2d, dwrite_.get(), str, f, D2D1::RectF(x0, y0, x1, y1), brush.get());
         };
-        text(time, Format(scene.timePx, DWRITE_FONT_WEIGHT_SEMI_BOLD), top, top + lineT);
-        text(date, Format(scene.datePx, DWRITE_FONT_WEIGHT_NORMAL), top + lineT, top + lineT + lineD);
+        if (week.empty()) {
+            text(time, Format(scene.timePx, DWRITE_FONT_WEIGHT_SEMI_BOLD), scene.clock.left, scene.clock.right, top, top + lineT);
+        } else {
+            float weekWidth = MeasureUiText(dwrite_.get(), week, scene.datePx, DWRITE_FONT_WEIGHT_NORMAL);
+            float timeWidth = MeasureUiText(dwrite_.get(), time, scene.timePx, DWRITE_FONT_WEIGHT_SEMI_BOLD);
+            float gap = 8 * s;
+            float left = (scene.clock.left + scene.clock.right - weekWidth - gap - timeWidth) / 2;
+            float weekTop = top + (lineT - lineD) / 2;
+            text(week, Format(scene.datePx, DWRITE_FONT_WEIGHT_NORMAL), left, left + weekWidth, weekTop, weekTop + lineD);
+            text(time, Format(scene.timePx, DWRITE_FONT_WEIGHT_SEMI_BOLD), left + weekWidth + gap,
+                 left + weekWidth + gap + timeWidth, top, top + lineT);
+        }
+        text(date, Format(scene.datePx, DWRITE_FONT_WEIGHT_NORMAL), scene.clock.left, scene.clock.right, top + lineT, top + lineT + lineD);
         d2d->SetTransform(D2D1::Matrix3x2F::Identity());
     }
 }

@@ -485,6 +485,19 @@
                                 <local:ToggleTile x:Name="NotificationsSwitch" Title="通知" SwitchName="显示通知按钮" Toggled="OnBarContentToggled" Flat="True" />
                                 <local:ToggleTile x:Name="ClockSwitch" Title="时钟和日期" SwitchName="显示时钟和日期" Toggled="OnClockToggled" Flat="True"
                                                   Note="在栏的右端，使用系统的时间与日期格式。" />
+                                <StackPanel x:Name="ClockOptions" Margin="14,-2,0,6" Spacing="2" Visibility="Collapsed">
+                                    <local:ToggleTile x:Name="WeekNumberSwitch" Title="显示周数" SwitchName="显示周数" Toggled="OnWeekNumberToggled" Flat="True"
+                                                      Note="在时间左侧显示周数。" />
+                                    <StackPanel x:Name="WeekRuleOptions" Margin="14,0,0,4" Spacing="6" Visibility="Collapsed">
+                                        <TextBlock Text="周数规则" Style="{StaticResource RowTitleStyle}" />
+                                        <local:SegmentTrack>
+                                            <RadioButton x:Name="WeekRuleIso" GroupName="week-rule" Content="ISO 8601" Tag="iso" Style="{StaticResource SegmentStyle}" Checked="OnWeekRuleChecked" />
+                                            <RadioButton x:Name="WeekRuleLocale" GroupName="week-rule" Content="Windows 区域" Tag="locale" Style="{StaticResource SegmentStyle}" Checked="OnWeekRuleChecked" />
+                                        </local:SegmentTrack>
+                                        <TextBlock Text="ISO：周一开周，含 1 月 4 日的周为第 1 周。Windows 区域：采用系统的周起始日和首周规则。"
+                                                   Style="{StaticResource RowNoteStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
                                 <local:ToggleTile x:Name="RunningSwitch" Title="正在运行的应用" SwitchName="显示正在运行的应用" Toggled="OnRunningToggled" Flat="True"
                                                   Note="固定的应用之后，显示正在运行的其他应用，下方带一个小圆点。" />
                                 <StackPanel Style="{StaticResource FlatRowStyle}">

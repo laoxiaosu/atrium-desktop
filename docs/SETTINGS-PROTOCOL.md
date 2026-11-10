@@ -23,6 +23,8 @@
 | `height` | number | 32–160 DIP | 60 | |
 | `margin` | number | 0–400 DIP | 10 | 与工作区底边的距离 |
 | `showClock` | bool | | true | 时钟与日期 |
+| `showWeekNumber` | bool | | false | 在时钟第一行的时间左侧显示周数，例如 `W46`；仅 `showClock` 开启时生效 |
+| `weekNumberRule` | string | `iso` / `locale` | `iso` | `iso`：ISO 8601，周一开周，包含 1 月 4 日的周为第 1 周；`locale`：按 Windows 用户区域设置的周起始日与首周规则计算 |
 | `showTray` | bool | | true | 系统托盘入口 |
 | `showStatus` | bool | | true | 状态环与控制中心入口 |
 | `showNotifications` | bool | | true | 通知入口；关闭入口不关闭通知来源 |
