@@ -39,6 +39,8 @@ internal sealed class BarSettings
     public double Magnify { get; set; } = 1.7;         // icon scale under the pointer, 1 = off
     public bool AutoWidth { get; set; } = true;
     public bool ShowClock { get; set; } = true;
+    public bool ShowWeekNumber { get; set; }
+    public string WeekNumberRule { get; set; } = "iso";
     public bool ShowTray { get; set; } = true;
     public bool ShowStatus { get; set; } = true;
     public bool ShowNotifications { get; set; } = true;
@@ -112,6 +114,8 @@ internal sealed class BarSettings
             ["iconSize"] = IconSize,
             ["magnify"] = Magnify,
             ["showClock"] = ShowClock,
+            ["showWeekNumber"] = ShowWeekNumber,
+            ["weekNumberRule"] = WeekNumberRule,
             ["showTray"] = ShowTray,
             ["showStatus"] = ShowStatus,
             ["showNotifications"] = ShowNotifications,
@@ -175,6 +179,9 @@ internal sealed class BarSettings
             s.Tint = tint;
         bool Flag(string k, bool d) => o?[k] is JsonValue v && v.TryGetValue(out bool b) ? b : d;
         s.ShowClock = Flag("showClock", f.ShowClock);
+        s.ShowWeekNumber = Flag("showWeekNumber", f.ShowWeekNumber);
+        s.WeekNumberRule = o?["weekNumberRule"] is JsonValue wr && wr.TryGetValue(out string? wrr) && wrr is "iso" or "locale"
+            ? wrr : f.WeekNumberRule;
         s.ShowTray = Flag("showTray", f.ShowTray);
         s.ShowStatus = Flag("showStatus", f.ShowStatus);
         s.ShowNotifications = Flag("showNotifications", f.ShowNotifications);
@@ -224,7 +231,7 @@ internal sealed class BarSettings
 
     public bool SameAs(BarSettings o) =>
         SameMaterial(o) && Preset == o.Preset && CornerRadius == o.CornerRadius && Width == o.Width && Height == o.Height &&
-        Margin == o.Margin && IconSize == o.IconSize && Magnify == o.Magnify && AutoWidth == o.AutoWidth && ShowClock == o.ShowClock &&
+        Margin == o.Margin && IconSize == o.IconSize && Magnify == o.Magnify && AutoWidth == o.AutoWidth && ShowClock == o.ShowClock && ShowWeekNumber == o.ShowWeekNumber && WeekNumberRule == o.WeekNumberRule &&
         ShowTray == o.ShowTray && ShowStatus == o.ShowStatus && ShowNotifications == o.ShowNotifications &&
         ShowRunning == o.ShowRunning && TextColor == o.TextColor && NotifyTimeout == o.NotifyTimeout && NotifyHideBody == o.NotifyHideBody &&
         NotifyListener == o.NotifyListener && NotifyWeChat == o.NotifyWeChat && NotifyFeishu == o.NotifyFeishu && Bar == o.Bar && Widgets == o.Widgets &&

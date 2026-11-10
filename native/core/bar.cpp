@@ -17,6 +17,7 @@
 #include <winrt/Windows.Foundation.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <cwctype>
@@ -165,13 +166,65 @@ float GlassLuma(const Settings& s, float backdrop)
     return backdrop * (1 - tm) + tintLuma * tm;
 }
 
-void ClockStrings(std::wstring& time, std::wstring& date)
+unsigned WeekOfYear(std::chrono::sys_days date, std::chrono::weekday firstDay, unsigned minimumDays)
 {
+    using namespace std::chrono;
+    auto firstWeek = [firstDay, minimumDays](year y) {
+        sys_days jan1 = y / January / 1;
+        unsigned offset = (weekday{jan1}.c_encoding() + 7 - firstDay.c_encoding()) % 7;
+        sys_days start = jan1 - days{offset};
+        if (7 - offset < minimumDays)
+            start += days{7};
+        return start;
+    };
+
+    year weekYear = year_month_day{date}.year();
+    sys_days start = firstWeek(weekYear);
+    if (date < start) {
+        --weekYear;
+        start = firstWeek(weekYear);
+    } else {
+        sys_days next = firstWeek(weekYear + years{1});
+        if (date >= next) {
+            ++weekYear;
+            start = next;
+        }
+    }
+    return unsigned((date - start).count() / 7 + 1);
+}
+
+std::wstring WeekNumber(const SYSTEMTIME& local, const Settings& settings)
+{
+    using namespace std::chrono;
+    sys_days date = year{local.wYear} / month{local.wMonth} / day{local.wDay};
+    weekday firstDay{Monday};
+    unsigned minimumDays = 4;
+    if (settings.weekNumberRule == L"locale") {
+        int first = 0, rule = 2;
+        GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_IFIRSTDAYOFWEEK | LOCALE_RETURN_NUMBER,
+                        reinterpret_cast<LPWSTR>(&first), sizeof(first) / sizeof(wchar_t));
+        GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_IFIRSTWEEKOFYEAR | LOCALE_RETURN_NUMBER,
+                        reinterpret_cast<LPWSTR>(&rule), sizeof(rule) / sizeof(wchar_t));
+        first = std::clamp(first, 0, 6); // Windows: Monday = 0, Sunday = 6
+        firstDay = weekday{unsigned((first + 1) % 7)};
+        minimumDays = rule == 1 ? 7u : rule == 2 ? 4u : 1u;
+    }
+    unsigned number = WeekOfYear(date, firstDay, minimumDays);
+    wchar_t text[8]{};
+    swprintf_s(text, L"W%02u", number);
+    return text;
+}
+
+void ClockStrings(const Settings& settings, std::wstring& time, std::wstring& date, std::wstring& week)
+{
+    SYSTEMTIME local{};
+    GetLocalTime(&local);
     wchar_t t[64] = {}, d[64] = {};
-    GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, nullptr, nullptr, t, 64);
-    GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, nullptr, nullptr, d, 64, nullptr);
+    GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &local, nullptr, t, 64);
+    GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, d, 64, nullptr);
     time = t;
     date = d;
+    week = settings.showClock && settings.showWeekNumber ? WeekNumber(local, settings) : L"";
 }
 
 
@@ -760,10 +813,12 @@ void Bar::Relayout()
     float timePx = float(barH) * 0.25f, datePx = float(barH) * 0.19f;
     int clockW = 0;
     if (st.showClock) {
-        std::wstring time, date;
-        ClockStrings(time, date);
-        float w = std::max(MeasureUiText(dwrite_.get(), WidestDigits(time), timePx, DWRITE_FONT_WEIGHT_SEMI_BOLD),
-                           MeasureUiText(dwrite_.get(), WidestDigits(date), datePx, DWRITE_FONT_WEIGHT_NORMAL));
+        std::wstring time, date, week;
+        ClockStrings(st, time, date, week);
+        float timeW = MeasureUiText(dwrite_.get(), WidestDigits(time), timePx, DWRITE_FONT_WEIGHT_SEMI_BOLD);
+        float dateW = MeasureUiText(dwrite_.get(), WidestDigits(date), datePx, DWRITE_FONT_WEIGHT_NORMAL);
+        float weekTimeW = week.empty() ? 0 : MeasureUiText(dwrite_.get(), L"W54", datePx, DWRITE_FONT_WEIGHT_NORMAL) + Px(8, s) + timeW;
+        float w = std::max({timeW, dateW, weekTimeW});
         clockW = int(std::ceil(w)) + Px(22, s);
     }
 
@@ -1997,10 +2052,10 @@ bool Bar::RenderSession()
         auto ink = [&](bool autoDark) { return snap.settings.textColor == L"dark" || (snap.settings.textColor == L"auto" && autoDark); };
         bool dark = ink(darkClock), darkIcons = ink(darkApps);
 
-        std::wstring time, date;
+        std::wstring time, date, week;
         if (snap.settings.showClock)
-            ClockStrings(time, date);
-        std::wstring textKey = time + L"|" + date;
+            ClockStrings(snap.settings, time, date, week);
+        std::wstring textKey = time + L"|" + date + L"|" + week;
         const double nowMs = ClockMs();
         animating = painter.Animate(snap.scene, nowMs);
         animating |= painter.UpdateDotInk(snap.scene, dotBackdrop, snap.settings, nowMs);
@@ -2035,7 +2090,7 @@ bool Bar::RenderSession()
         params.rippleA = bf.rippleA;
         bool ok = renderer.Present(params,
                                    [&](ID2D1DeviceContext2* d2d) {
-                                       painter.Draw(d2d, snap.scene, inks, time, date,
+                                       painter.Draw(d2d, snap.scene, inks, time, date, week,
                                                     std::to_wstring(snap.generation) + textKey + (dark ? L"d" : L"l") + (darkIcons ? L"d" : L"l"),
                                                     animating);
                                    });

@@ -36,6 +36,8 @@ struct Settings {
     double magnify = 1.7;            // dock magnification under the pointer: icon scale, 1 = off
     bool autoWidth = true;           // shrink to the content
     bool showClock = true;
+    bool showWeekNumber = false;
+    std::wstring weekNumberRule = L"iso"; // iso | locale
     bool showTray = true;
     bool showStatus = true;
     bool showNotifications = true;

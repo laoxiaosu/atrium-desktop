@@ -38,7 +38,8 @@ internal sealed class BarFace
     private readonly TextBlock _badgeText = new() { Text = "3", Foreground = new SolidColorBrush(Colors.White), HorizontalAlignment = HorizontalAlignment.Center,
                                                     VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center };
     private readonly StatusGlyph _status = new();
-    private readonly TextBlock _time = Clock(true), _date = Clock(false), _timeHalo = Clock(true), _dateHalo = Clock(false);
+    private readonly TextBlock _time = Clock(true), _date = Clock(false), _week = Clock(false),
+        _timeHalo = Clock(true), _dateHalo = Clock(false), _weekHalo = Clock(false);
     private (MainWindow.BarGeometry Geometry, bool Dark, int Apps, int Running, double Magnify, double Zoom, double X, double Y,
              (double Fill, bool Charging, bool Low) Battery)? _layout;
 
@@ -65,7 +66,7 @@ internal sealed class BarFace
             _dots.Add(dot);
             canvas.Children.Add(dot);
         }
-        foreach (var e in new UIElement[] { _sep, _tray, _status, _timeHalo, _dateHalo, _time, _date, _bell, _badge }) canvas.Children.Add(e);
+        foreach (var e in new UIElement[] { _sep, _tray, _status, _weekHalo, _timeHalo, _dateHalo, _week, _time, _date, _bell, _badge }) canvas.Children.Add(e);
     }
 
     public IReadOnlyList<Image> Icons => _icons;
@@ -89,10 +90,11 @@ internal sealed class BarFace
         return t;
     }
 
-    public void SetClock(string time, string date)
+    public void SetClock(string time, string date, string week)
     {
         _time.Text = _timeHalo.Text = time;
         _date.Text = _dateHalo.Text = date;
+        _week.Text = _weekHalo.Text = week;
     }
 
     // DrawLogo: four panes, Windows 11's light-to-deep blue across the whole logo.
@@ -240,10 +242,11 @@ internal sealed class BarFace
             Canvas.SetTop(_status, y);
         }
 
-        // The clock: moves with the stretched bar, does not grow; time 25 %, date 19 % of the bar's
-        // height, line heights 1.22 and 1.25, centred on the bar; a halo just below (32 % black or 35 % white).
+        // The clock keeps two rows: time (and the optional week number) above the date.
         bool clock = L.Clock;
+        bool showWeek = clock && L.WeekNumber && _week.Text.Length > 0;
         foreach (var t in new[] { _time, _date, _timeHalo, _dateHalo }) t.Visibility = clock ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var t in new[] { _week, _weekHalo }) t.Visibility = showWeek ? Visibility.Visible : Visibility.Collapsed;
         if (clock)
         {
             double lineT = L.TimePx * 1.22, lineD = L.DatePx * 1.25;
@@ -251,19 +254,46 @@ internal sealed class BarFace
             double top = Y(L.BarY + L.BarH / 2 - (lineT + lineD) / 2);
             double halo = Math.Max(0.6 * L.S, 0.5) * zoom;
             var haloBrush = new SolidColorBrush(darkInk ? Color.FromArgb(89, 255, 255, 255) : Color.FromArgb(82, 0, 0, 0));
-            void Place(TextBlock t, double size, double line, double y, Brush brush)
+            void Prepare(TextBlock t, double size, double line, Brush brush)
             {
                 t.FontSize = Math.Max(1, size * zoom);
                 t.LineHeight = line * zoom;
-                t.Width = w;
+                t.Width = double.NaN;
                 t.Foreground = brush;
-                Canvas.SetLeft(t, cx - w / 2);
+                t.Measure(new Size(double.PositiveInfinity, line * zoom));
+            }
+            void Place(TextBlock t, double size, double line, double y, Brush brush, double center, double width)
+            {
+                t.FontSize = Math.Max(1, size * zoom);
+                t.LineHeight = line * zoom;
+                t.Width = width;
+                t.Foreground = brush;
+                Canvas.SetLeft(t, center - width / 2);
                 Canvas.SetTop(t, y);
             }
-            Place(_timeHalo, L.TimePx, lineT, top + halo, haloBrush);
-            Place(_dateHalo, L.DatePx, lineD, top + lineT * zoom + halo, haloBrush);
-            Place(_time, L.TimePx, lineT, top, ink);
-            Place(_date, L.DatePx, lineD, top + lineT * zoom, ink);
+            Place(_dateHalo, L.DatePx, lineD, top + lineT * zoom + halo, haloBrush, cx, w);
+            Place(_date, L.DatePx, lineD, top + lineT * zoom, ink, cx, w);
+            if (showWeek)
+            {
+                Prepare(_week, L.DatePx, lineD, ink);
+                Prepare(_weekHalo, L.DatePx, lineD, haloBrush);
+                Prepare(_time, L.TimePx, lineT, ink);
+                Prepare(_timeHalo, L.TimePx, lineT, haloBrush);
+                double weekW = Math.Max(_week.DesiredSize.Width, L.DatePx * 2 * zoom);
+                double timeW = Math.Max(_time.DesiredSize.Width, L.TimePx * 2.75 * zoom);
+                double gap = 8 * zoom;
+                double left = cx - (weekW + gap + timeW) / 2;
+                double weekY = top + (lineT - lineD) * zoom / 2;
+                Place(_weekHalo, L.DatePx, lineD, weekY + halo, haloBrush, left + weekW / 2, weekW);
+                Place(_week, L.DatePx, lineD, weekY, ink, left + weekW / 2, weekW);
+                Place(_timeHalo, L.TimePx, lineT, top + halo, haloBrush, left + weekW + gap + timeW / 2, timeW);
+                Place(_time, L.TimePx, lineT, top, ink, left + weekW + gap + timeW / 2, timeW);
+            }
+            else
+            {
+                Place(_timeHalo, L.TimePx, lineT, top + halo, haloBrush, cx, w);
+                Place(_time, L.TimePx, lineT, top, ink, cx, w);
+            }
         }
     }
 }

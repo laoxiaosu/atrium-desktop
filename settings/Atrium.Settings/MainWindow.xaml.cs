@@ -699,6 +699,10 @@ public sealed partial class MainWindow : Window
         (_current.Preset switch { "liquid" => PresetLiquid, "frosted" => PresetFrosted, _ => PresetCustom }).IsChecked = true;
         (Photo.Selected switch { "wallpaper" => BgWallpaper, "paper" => BgPaper, "geometry" => BgGeometry, "layers" => BgLayers, _ => BgSpecimen }).IsChecked = true;
         ClockSwitch.IsOn = _current.ShowClock;
+        WeekNumberSwitch.IsOn = _current.ShowWeekNumber;
+        (_current.WeekNumberRule == "locale" ? WeekRuleLocale : WeekRuleIso).IsChecked = true;
+        ClockOptions.Visibility = _current.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+        WeekRuleOptions.Visibility = _current.ShowClock && _current.ShowWeekNumber ? Visibility.Visible : Visibility.Collapsed;
         TraySwitch.IsOn = _current.ShowTray;
         StatusSwitch.IsOn = _current.ShowStatus;
         NotificationsSwitch.IsOn = _current.ShowNotifications;
@@ -775,6 +779,22 @@ public sealed partial class MainWindow : Window
     {
         if (_loading) return;
         _current.ShowClock = ClockSwitch.IsOn;
+        ClockOptions.Visibility = _current.ShowClock ? Visibility.Visible : Visibility.Collapsed;
+        Changed();
+    }
+
+    private void OnWeekNumberToggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _current.ShowWeekNumber = WeekNumberSwitch.IsOn;
+        WeekRuleOptions.Visibility = _current.ShowClock && _current.ShowWeekNumber ? Visibility.Visible : Visibility.Collapsed;
+        Changed();
+    }
+
+    private void OnWeekRuleChecked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || sender is not RadioButton { Tag: string rule }) return;
+        _current.WeekNumberRule = rule;
         Changed();
     }
 

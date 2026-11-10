@@ -48,6 +48,8 @@ void Settings::Clamp()
         pins->resize(64);
     if (preset != L"liquid" && preset != L"frosted")
         preset = L"custom";
+    if (weekNumberRule != L"iso" && weekNumberRule != L"locale")
+        weekNumberRule = L"iso";
 }
 
 std::wstring Settings::ToJson() const
@@ -73,6 +75,8 @@ std::wstring Settings::ToJson() const
     num(L"iconSize", iconSize);
     num(L"magnify", magnify);
     o.SetNamedValue(L"showClock", json::JsonValue::CreateBooleanValue(showClock));
+    o.SetNamedValue(L"showWeekNumber", json::JsonValue::CreateBooleanValue(showWeekNumber));
+    o.SetNamedValue(L"weekNumberRule", json::JsonValue::CreateStringValue(weekNumberRule));
     o.SetNamedValue(L"showTray", json::JsonValue::CreateBooleanValue(showTray));
     o.SetNamedValue(L"showStatus", json::JsonValue::CreateBooleanValue(showStatus));
     o.SetNamedValue(L"showNotifications", json::JsonValue::CreateBooleanValue(showNotifications));
@@ -147,6 +151,9 @@ bool Settings::FromJson(const std::wstring& text, const Settings& base, Settings
             v = o.GetNamedBoolean(k);
     };
     flag(L"showClock", s.showClock);
+    flag(L"showWeekNumber", s.showWeekNumber);
+    if (o.HasKey(L"weekNumberRule") && o.GetNamedValue(L"weekNumberRule").ValueType() == json::JsonValueType::String)
+        s.weekNumberRule = std::wstring(o.GetNamedString(L"weekNumberRule"));
     flag(L"showTray", s.showTray);
     flag(L"showStatus", s.showStatus);
     flag(L"showNotifications", s.showNotifications);
